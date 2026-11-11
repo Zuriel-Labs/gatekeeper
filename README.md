@@ -135,20 +135,21 @@ Access the admin UI at `http://localhost:8080/admin/` with HTTP Basic Auth.
 Example calls:
 
 ```bash
+# Set GATEKEEPER_API_KEY to a key created in the admin UI.
 # List Gmail messages
-curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
+curl -H "X-Gatekeeper-API-Key: ${GATEKEEPER_API_KEY}" \
   http://localhost:8080/api/v1/gmail/messages/list
 
 # Get a Drive file
-curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
-  http://localhost:8080/api/v1/drive/files/get?file_id=1abc...
+curl -H "X-Gatekeeper-API-Key: ${GATEKEEPER_API_KEY}" \
+  "http://localhost:8080/api/v1/drive/files/get?file_id=FILE_ID"
 
 # List responses from a Google Form
-curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
+curl -H "X-Gatekeeper-API-Key: ${GATEKEEPER_API_KEY}" \
   "http://localhost:8080/api/v1/forms/forms/responses/list?form_id=FORM_ID&page_size=20"
 
 # Get an Apps Script project
-curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
+curl -H "X-Gatekeeper-API-Key: ${GATEKEEPER_API_KEY}" \
   "http://localhost:8080/api/v1/appsscript/projects/get?script_id=SCRIPT_ID"
 ```
 
