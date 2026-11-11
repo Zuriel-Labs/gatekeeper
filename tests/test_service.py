@@ -367,6 +367,7 @@ class TestEnableDisable:
 
         with (
             patch("gatekeeper.service._unit_path", return_value=unit_path),
+            patch("gatekeeper.service._run", return_value=mock_result),
             patch("gatekeeper.service._systemctl", return_value=mock_result) as mock_ctl,
         ):
             result = restart_service(scope="system")

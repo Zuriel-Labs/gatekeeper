@@ -2,7 +2,7 @@
 # It's run during the Docker build stage where .git is not available.
 import os, re, sys
 
-version = os.environ.get("BUILD_VERSION", "0.0.0")
+version = os.environ.get("BUILD_VERSION") or "0.0.0"
 path = sys.argv[1] if len(sys.argv) > 1 else "pyproject.toml"
 
 with open(path) as f:

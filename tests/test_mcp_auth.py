@@ -137,9 +137,7 @@ class TestMCPHeaderAuth:
         mock_proxy.call_google.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_header_takes_precedence_over_argument(
-        self, call_tool_coro, db_session, api_key
-    ):
+    async def test_header_takes_precedence_over_argument(self, call_tool_coro, db_session, api_key):
         """Scenario 3: when both header and arg are present, header wins."""
         ctx = make_request_ctx({"X-Gatekeeper-API-Key": api_key})
         bogus_arg = "gkp_argument_value_not_real_but_distinguishable"
@@ -187,9 +185,7 @@ class TestMCPArgumentAuth:
     async def test_invalid_argument_returns_401(self, call_tool_coro):
         """Scenario 6: invalid api_key argument returns 401."""
         with use_request_ctx(None):
-            content = await call_tool_coro(
-                "drive__files_list", {"api_key": "gkp_does_not_exist"}
-            )
+            content = await call_tool_coro("drive__files_list", {"api_key": "gkp_does_not_exist"})
 
         payload = json.loads(content[0].text)
         assert payload == {

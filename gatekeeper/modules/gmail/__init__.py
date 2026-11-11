@@ -911,7 +911,12 @@ class GmailModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["deleted", "internalDateSource", "neverMarkSpam", "processForCalendar"],
+                query_params=[
+                    "deleted",
+                    "internalDateSource",
+                    "neverMarkSpam",
+                    "processForCalendar",
+                ],
                 default_policy={},
                 enabled_by_default=False,
             ),

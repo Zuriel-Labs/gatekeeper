@@ -2186,7 +2186,11 @@ class TestMultipartUpload:
             await proxy.call_google(
                 module_name="drive",
                 route_id="drive.files.upload",
-                params={"name": "report.docx", "base64_content": b64, "mime_type": "application/octet-stream"},
+                params={
+                    "name": "report.docx",
+                    "base64_content": b64,
+                    "mime_type": "application/octet-stream",
+                },
                 api_key_record=api_key,
                 request_method="POST",
             )
@@ -2195,7 +2199,10 @@ class TestMultipartUpload:
             sent_body = call_args[1]["content"]
             assert b"application/octet-stream" in sent_body
             # Default .docx guess would be wordprocessingml, which should NOT appear
-            assert b"application/vnd.openxmlformats-officedocument.wordprocessingml.document" not in sent_body
+            assert (
+                b"application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                not in sent_body
+            )
 
     @pytest.mark.asyncio
     async def test_upload_type_in_query_params(self, db_session):
