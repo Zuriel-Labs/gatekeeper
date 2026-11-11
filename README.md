@@ -1,10 +1,10 @@
 # Gatekeeper 🔐
 
-[![CI](https://github.com/brimdor/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/brimdor/gatekeeper/actions/workflows/ci.yml)
+[![CI](https://github.com/Zuriel-Labs/gatekeeper/actions/workflows/ci.yml/badge.svg)](https://github.com/Zuriel-Labs/gatekeeper/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
-**Policy gateway for Google Workspace APIs** — fine-grained control over what AI agents can do with your Google Drive, Gmail, Calendar, Forms, and Apps Script. Exposes enabled routes as MCP tools so agents discover and call only what you allow.
+**Gatekeeper is a self-hosted policy gateway for Google Workspace APIs.** It provides a REST API and an MCP server for Google Drive, Gmail, Calendar, Forms, and Apps Script. Per-route policies control which operations are allowed and can apply supported request limits and response filters. It is a beta project; review the OAuth scopes and route defaults before connecting an agent or using it with real data.
 
 ---
 
@@ -15,26 +15,26 @@
 The install script walks you through setup interactively:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/brimdor/gatekeeper/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Zuriel-Labs/gatekeeper/main/install.sh | bash
 ```
 
 ### Option 2: Install with uv
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install "gatekeeper @ git+https://github.com/brimdor/gatekeeper"
+uv tool install "gatekeeper @ git+https://github.com/Zuriel-Labs/gatekeeper"
 ```
 
 ### Option 3: Install with pip
 
 ```bash
-pip install git+https://github.com/brimdor/gatekeeper
+pip install git+https://github.com/Zuriel-Labs/gatekeeper
 ```
 
 ### Option 4: Podman/Docker
 
 ```bash
-git clone https://github.com/brimdor/gatekeeper.git
+git clone https://github.com/Zuriel-Labs/gatekeeper.git
 cd gatekeeper
 cp .env.example .env
 # Edit .env with your Google OAuth credentials and module preferences
@@ -47,13 +47,13 @@ After starting, authenticate with Google (`gatekeeper auth`), then visit `http:/
 
 ## Why Gatekeeper?
 
-Google's OAuth scopes are all-or-nothing. `gmail.modify` gives full read/write/delete on everything. There's no way to say "read-only this label" or "create events but never delete them."
+Google OAuth scopes grant broad access to an account. Gatekeeper adds a route-level policy layer in front of those APIs. It does not narrow Google's OAuth grant itself: configure only the modules/scopes you need, then use Gatekeeper policies and key permissions to restrict requests.
 
 Gatekeeper sits between your AI agents and Google's APIs, acting as a policy layer:
 
 - **Enable/disable individual routes** — turn off `gmail.messages.send` but keep `gmail.messages.list`
-- **Cap limits** — restrict `maxResults` to 50, limit recipients to 5
-- **Filter data** — exclude SPAM/TRASH from Gmail, block sensitive fields
+- **Apply supported policy transforms** — cap result counts, filter Gmail label IDs, add a Gmail query filter, strip named response fields, and cap selected response arrays
+- **Control route access** — enable or disable individual routes and limit API keys to selected modules
 - **Audit everything** — every request logged with key, route, status, timestamp
 - **MCP server** — agents discover only enabled routes as tools, auto-updating when you toggle routes in the admin UI
 
@@ -90,7 +90,7 @@ For step-by-step details, see [docs/SETUP.md](docs/SETUP.md).
 
 ## Using with AI Agents
 
-Gatekeeper connects to AI agents via MCP (Model Context Protocol). Write routes are disabled by default; only a human admin can enable them.
+Gatekeeper connects to AI agents via MCP (Model Context Protocol). MCP tools are exposed for routes whose policies are enabled. Route defaults vary: review the route table and change policies in the admin UI before use. API keys can also be restricted to modules.
 
 - **For humans** → [docs/MCP_SETUP_HUMAN.md](docs/MCP_SETUP_HUMAN.md)
 - **For AI agents** → [docs/MCP_SETUP_AGENT.md](docs/MCP_SETUP_AGENT.md)
@@ -136,23 +136,23 @@ Example calls:
 
 ```bash
 # List Gmail messages
-curl -H "Authorization: Bearer *** \
+curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
   http://localhost:8080/api/v1/gmail/messages/list
 
 # Get a Drive file
-curl -H "Authorization: Bearer *** \
+curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
   http://localhost:8080/api/v1/drive/files/get?file_id=1abc...
 
 # List responses from a Google Form
-curl -H "Authorization: Bearer *** \
+curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
   "http://localhost:8080/api/v1/forms/forms/responses/list?form_id=FORM_ID&page_size=20"
 
 # Get an Apps Script project
-curl -H "Authorization: Bearer *** \
+curl -H "X-Gatekeeper-API-Key: gkp_your_api_key_here" \
   "http://localhost:8080/api/v1/appsscript/projects/get?script_id=SCRIPT_ID"
 ```
 
-For the full reference — all 200 routes, auth, rate limits, binary/multipart routes, and admin endpoints — see [docs/API_REFERENCE.md](docs/API_REFERENCE.md). The canonical route table lives in [docs/ROUTES.md](docs/ROUTES.md).
+The route table currently lists 200 routes. For the full reference, including authentication, rate limits, binary/multipart routes, and admin endpoints, see [docs/API_REFERENCE.md](docs/API_REFERENCE.md). The canonical route table lives in [docs/ROUTES.md](docs/ROUTES.md).
 
 ---
 
@@ -261,7 +261,7 @@ See [SECURITY.md](SECURITY.md) for details.
 ## Development
 
 ```bash
-git clone https://github.com/brimdor/gatekeeper.git
+git clone https://github.com/Zuriel-Labs/gatekeeper.git
 cd gatekeeper
 uv pip install -e ".[dev]"
 uv run pytest tests/ -v
