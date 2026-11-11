@@ -17,15 +17,12 @@ from gatekeeper.config import settings
 from gatekeeper.models import ApiKey
 from gatekeeper.policy import PolicyEngine
 
-# MCP SDK exposes the current request context as a ContextVar so handlers can
-# read HTTP headers set by the client transport (SSE / StreamableHTTP).
-from mcp.server.lowlevel.server import request_ctx
-
 logger = logging.getLogger(__name__)
 
 
 def _get_async_session():
-    """Return the current async_session callable, allowing tests to patch gatekeeper.db.async_session."""
+    """Return the current async_session callable,
+    allowing tests to patch gatekeeper.db.async_session."""
     import gatekeeper.db
 
     return gatekeeper.db.async_session
@@ -34,6 +31,7 @@ def _get_async_session():
 def _get_session():
     """Return an AsyncSession from the current async_session callable."""
     return _get_async_session()()
+
 
 # Lazy-initialised singleton
 _mcp_instance: Any | None = None
@@ -164,7 +162,8 @@ def create_mcp_server() -> Any:
                         props["api_key"] = {
                             "type": "string",
                             "description": (
-                                "Gatekeeper API key. Optional when the X-Gatekeeper-API-Key HTTP header "
+                                "Gatekeeper API key. Optional when the "
+                                "X-Gatekeeper-API-Key HTTP header "
                                 "is set on the request; otherwise required for authentication."
                             ),
                         }
@@ -208,7 +207,7 @@ def create_mcp_server() -> Any:
         # ---- AUTH: header first, argument fallback, always pop ----
         api_key: str | None = None
         try:
-            ctx = request_ctx.get()
+            ctx = mcp._mcp_server.request_context
         except LookupError:
             ctx = None
 
@@ -232,7 +231,10 @@ def create_mcp_server() -> Any:
                         {
                             "error": True,
                             "status": 401,
-                            "message": "API key required (set X-Gatekeeper-API-Key header or pass api_key argument)",
+                            "message": (
+                                "API key required (set X-Gatekeeper-API-Key "
+                                "header or pass api_key argument)"
+                            ),
                         }
                     ),
                 )

@@ -6,10 +6,11 @@ Verifies:
 2. The body_transform field on RouteDef is wired through the proxy.
 3. Existing routes without body_transform still forward params verbatim.
 """
+
 import pytest
+
 from gatekeeper.api.proxy import GoogleProxy
 from gatekeeper.modules.route import RouteDef
-
 
 # ─── Helper unit tests (no DB / proxy init required) ───────────────────────
 
@@ -22,10 +23,12 @@ class TestRestructureSheetCreateBody:
         assert result == {"properties": {"title": "My Sheet"}}
 
     def test_flat_title_with_sheet_titles(self):
-        result = GoogleProxy.sheet_create({
-            "title": "My Sheet",
-            "sheet_titles": ["Sheet1", "Sheet2"],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "My Sheet",
+                "sheet_titles": ["Sheet1", "Sheet2"],
+            }
+        )
         assert result == {
             "properties": {"title": "My Sheet"},
             "sheets": [
@@ -35,11 +38,13 @@ class TestRestructureSheetCreateBody:
         }
 
     def test_flat_title_with_locale_and_timezone(self):
-        result = GoogleProxy.sheet_create({
-            "title": "My Sheet",
-            "locale": "en_US",
-            "timeZone": "America/Chicago",
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "My Sheet",
+                "locale": "en_US",
+                "timeZone": "America/Chicago",
+            }
+        )
         assert result == {
             "properties": {
                 "title": "My Sheet",
@@ -62,25 +67,31 @@ class TestRestructureSheetCreateBody:
 
     def test_extra_fields_passthrough(self):
         """Unknown fields are preserved on the Spreadsheet resource."""
-        result = GoogleProxy.sheet_create({
-            "title": "My Sheet",
-            "namedRanges": [{"namedRangeId": "foo"}],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "My Sheet",
+                "namedRanges": [{"namedRangeId": "foo"}],
+            }
+        )
         assert result["namedRanges"] == [{"namedRangeId": "foo"}]
         assert result["properties"]["title"] == "My Sheet"
 
     def test_empty_sheet_titles_produces_empty_sheets_array(self):
         """Empty list produces an empty 'sheets' array (Google accepts this)."""
-        result = GoogleProxy.sheet_create({
-            "title": "My Sheet",
-            "sheet_titles": [],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "My Sheet",
+                "sheet_titles": [],
+            }
+        )
         assert result == {"properties": {"title": "My Sheet"}, "sheets": []}
 
     def test_sheet_titles_only_no_top_level_title(self):
-        result = GoogleProxy.sheet_create({
-            "sheet_titles": ["Only"],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "sheet_titles": ["Only"],
+            }
+        )
         assert result == {
             "sheets": [{"properties": {"title": "Only", "index": 0}}],
         }
@@ -89,10 +100,12 @@ class TestRestructureSheetCreateBody:
         """After snake→camel normalization, sheet_titles becomes sheetTitles.
         The transform must still recognize and convert it correctly.
         """
-        result = GoogleProxy.sheet_create({
-            "title": "My Sheet",
-            "sheetTitles": ["Sheet1", "Sheet2"],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "My Sheet",
+                "sheetTitles": ["Sheet1", "Sheet2"],
+            }
+        )
         assert result == {
             "properties": {"title": "My Sheet"},
             "sheets": [
@@ -103,10 +116,12 @@ class TestRestructureSheetCreateBody:
 
     def test_handles_snake_case_sheet_titles(self):
         """For backwards compat: snake_case key still works."""
-        result = GoogleProxy.sheet_create({
-            "title": "My Sheet",
-            "sheet_titles": ["Only"],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "My Sheet",
+                "sheet_titles": ["Only"],
+            }
+        )
         assert result == {
             "properties": {"title": "My Sheet"},
             "sheets": [{"properties": {"title": "Only", "index": 0}}],
@@ -114,11 +129,13 @@ class TestRestructureSheetCreateBody:
 
     def test_camelcase_preferred_over_snake_case(self):
         """When both are present, use camelCase (post-normalization form)."""
-        result = GoogleProxy.sheet_create({
-            "title": "X",
-            "sheetTitles": ["FromCamel"],
-            "sheet_titles": ["FromSnake"],
-        })
+        result = GoogleProxy.sheet_create(
+            {
+                "title": "X",
+                "sheetTitles": ["FromCamel"],
+                "sheet_titles": ["FromSnake"],
+            }
+        )
         # sheetTitles wins; sheet_titles never gets seen
         sheet_titles_field = result["sheets"][0]["properties"]["title"]
         assert sheet_titles_field == "FromCamel"
@@ -176,8 +193,6 @@ async def test_proxy_dispatches_body_transform(db_session, monkeypatch):
     # Capture what httpx posts
     captured = {}
 
-    real_post = httpx.AsyncClient.post
-
     async def fake_post(self, url, **kwargs):
         captured["url"] = str(url)
         captured["json"] = kwargs.get("json")
@@ -200,7 +215,7 @@ async def test_proxy_dispatches_body_transform(db_session, monkeypatch):
     from gatekeeper.modules.drive import DriveModule
 
     drive = DriveModule()
-    route = next(r for r in drive.get_routes() if r.route_id == "drive.sheets.spreadsheets.create")
+    next(r for r in drive.get_routes() if r.route_id == "drive.sheets.spreadsheets.create")
 
     # We need an enabled route policy for the proxy to proceed. The fixture
     # `db_session` should have already seeded routes for the drive module —
@@ -221,6 +236,7 @@ async def test_proxy_dispatches_body_transform(db_session, monkeypatch):
 
     # If the route policy isn't enabled in the seeded DB, skip.
     from sqlalchemy import select
+
     from gatekeeper.models import RoutePolicy
 
     policy_result = await db_session.execute(

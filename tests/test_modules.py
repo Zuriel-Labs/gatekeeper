@@ -249,6 +249,7 @@ class TestCalendarModule:
             assert "description" in tool
             assert "inputSchema" in tool
 
+
 class TestFormsModule:
     """Tests for the Forms module route definitions."""
 
@@ -290,7 +291,9 @@ class TestFormsModule:
     def test_required_scopes(self):
         assert "https://www.googleapis.com/auth/forms.body" in self.mod.required_scopes
         assert "https://www.googleapis.com/auth/forms.body.readonly" in self.mod.required_scopes
-        assert "https://www.googleapis.com/auth/forms.responses.readonly" in self.mod.required_scopes
+        assert (
+            "https://www.googleapis.com/auth/forms.responses.readonly" in self.mod.required_scopes
+        )
 
     def test_google_path_prefix(self):
         # Every google_path must start with /v1 (per discovery doc)
@@ -415,16 +418,15 @@ class TestAppsScriptModule:
         # Research Observation #2: dotted query params are flattened because the
         # proxy's snake→camelCase transform cannot reintroduce the dot.
         # This test pins the query_params list so future refactors notice.
-        route = next(
-            r for r in self.mod.get_routes() if r.route_id == "appsscript.processes.list"
-        )
+        route = next(r for r in self.mod.get_routes() if r.route_id == "appsscript.processes.list")
         assert "user_process_filter_script_id" in route.query_params
         assert "user_process_filter_deployment_id" in route.query_params
         assert "user_process_filter_function_name" in route.query_params
 
     def test_list_script_processes_has_flattened_filter_query_params(self):
         route = next(
-            r for r in self.mod.get_routes()
+            r
+            for r in self.mod.get_routes()
             if r.route_id == "appsscript.processes.list_script_processes"
         )
         assert "script_process_filter_function_name" in route.query_params
@@ -435,10 +437,10 @@ class TestAppsScriptModule:
         # Research Observation #1: the discovery path is
         # v1/processes:listScriptProcesses, NOT v1/processes/listScriptProcesses
         route = next(
-            r for r in self.mod.get_routes()
+            r
+            for r in self.mod.get_routes()
             if r.route_id == "appsscript.processes.list_script_processes"
         )
         assert route.google_path == "/v1/processes:listScriptProcesses", (
             f"Expected colon-notation path, got: {route.google_path!r}"
         )
-
