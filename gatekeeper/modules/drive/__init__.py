@@ -10,8 +10,7 @@ class DriveModule(GoogleModule):
     name = "drive"
     display_name = "Google Drive"
     description = (
-        "Browse, search, and read files in Google Drive, "
-        "including Sheets, Docs, and Slides content"
+        "Browse, search, and read files in Google Drive, including Sheets, Docs, and Slides content"
     )
     icon = "📁"
 
@@ -859,7 +858,22 @@ class DriveModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["driveId", "includeCorpusRemovals", "includeItemsFromAllDrives", "includeLabels", "includePermissionsForView", "includeRemoved", "includeTeamDriveItems", "pageSize", "pageToken", "restrictToMyDrive", "spaces", "supportsAllDrives", "supportsTeamDrives", "teamDriveId"],
+                query_params=[
+                    "driveId",
+                    "includeCorpusRemovals",
+                    "includeItemsFromAllDrives",
+                    "includeLabels",
+                    "includePermissionsForView",
+                    "includeRemoved",
+                    "includeTeamDriveItems",
+                    "pageSize",
+                    "pageToken",
+                    "restrictToMyDrive",
+                    "spaces",
+                    "supportsAllDrives",
+                    "supportsTeamDrives",
+                    "teamDriveId",
+                ],
                 default_policy={},
                 enabled_by_default=False,
             ),
@@ -994,7 +1008,13 @@ class DriveModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["acknowledgeAbuse", "includeLabels", "includePermissionsForView", "supportsAllDrives", "supportsTeamDrives"],
+                query_params=[
+                    "acknowledgeAbuse",
+                    "includeLabels",
+                    "includePermissionsForView",
+                    "supportsAllDrives",
+                    "supportsTeamDrives",
+                ],
                 default_policy={},
                 enabled_by_default=False,
             ),
@@ -1196,7 +1216,9 @@ class DriveModule(GoogleModule):
                         },
                         "range": {
                             "type": "string",
-                            "description": "A1 or R1C1 notation of the range (e.g., 'Sheet1!A1:C10')",
+                            "description": (
+                                "A1 or R1C1 notation of the range (e.g., 'Sheet1!A1:C10')"
+                            ),
                         },
                         "value_render_option": {
                             "type": "string",
@@ -1244,7 +1266,12 @@ class DriveModule(GoogleModule):
                     },
                     "required": ["spreadsheet_id"],
                 },
-                query_params=["ranges", "value_render_option", "date_time_render_option", "major_dimension"],
+                query_params=[
+                    "ranges",
+                    "value_render_option",
+                    "date_time_render_option",
+                    "major_dimension",
+                ],
                 default_policy={},
             ),
             RouteDef(
@@ -1287,7 +1314,9 @@ class DriveModule(GoogleModule):
                         "spreadsheet_id": {"type": "string"},
                         "range": {
                             "type": "string",
-                            "description": "A1 notation of the table to search (e.g., 'Sheet1!A1:B')",
+                            "description": (
+                                "A1 notation of the table to search (e.g., 'Sheet1!A1:B')"
+                            ),
                         },
                         "values": {
                             "type": "array",
@@ -1390,7 +1419,10 @@ class DriveModule(GoogleModule):
                 method="POST",
                 base_url="https://sheets.googleapis.com",
                 google_path="/v4/spreadsheets/{spreadsheetId}:batchUpdate",
-                description="Apply one or more updates to a spreadsheet (formatting, formulas, charts, etc.)",
+                description=(
+                    "Apply one or more updates to a spreadsheet "
+                    "(formatting, formulas, charts, etc.)"
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -1398,7 +1430,10 @@ class DriveModule(GoogleModule):
                         "requests": {
                             "type": "array",
                             "items": {"type": "object"},
-                            "description": "List of update request objects (see Sheets API batchUpdate reference)",
+                            "description": (
+                                "List of update request objects (see "
+                                "Sheets API batchUpdate reference)"
+                            ),
                         },
                     },
                     "required": ["spreadsheet_id", "requests"],
@@ -1406,7 +1441,6 @@ class DriveModule(GoogleModule):
                 default_policy={},
                 enabled_by_default=False,
             ),
-
             # ── Google Docs API (docs.googleapis.com) ──
             RouteDef(
                 route_id="drive.docs.documents.get",
@@ -1451,7 +1485,9 @@ class DriveModule(GoogleModule):
                 method="POST",
                 base_url="https://docs.googleapis.com",
                 google_path="/v1/documents/{documentId}:batchUpdate",
-                description="Apply one or more updates to a Google Doc (insert text, delete, style, etc.)",
+                description=(
+                    "Apply one or more updates to a Google Doc (insert text, delete, style, etc.)"
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -1459,11 +1495,17 @@ class DriveModule(GoogleModule):
                         "requests": {
                             "type": "array",
                             "items": {"type": "object"},
-                            "description": "Update requests (InsertTextRequest, DeleteContentRangeRequest, etc.)",
+                            "description": (
+                                "Update requests (InsertTextRequest, "
+                                "DeleteContentRangeRequest, etc.)"
+                            ),
                         },
                         "write_control": {
                             "type": "object",
-                            "description": "Optional concurrency control (required_revision_id / target_revision_id)",
+                            "description": (
+                                "Optional concurrency control "
+                                "(required_revision_id / target_revision_id)"
+                            ),
                         },
                     },
                     "required": ["document_id", "requests"],
@@ -1471,7 +1513,6 @@ class DriveModule(GoogleModule):
                 default_policy={},
                 enabled_by_default=False,
             ),
-
             # ── Google Slides API (slides.googleapis.com) ──
             RouteDef(
                 route_id="drive.slides.presentations.get",
@@ -1513,7 +1554,10 @@ class DriveModule(GoogleModule):
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "title": {"type": "string", "description": "Title for the new presentation"},
+                        "title": {
+                            "type": "string",
+                            "description": "Title for the new presentation",
+                        },
                     },
                 },
                 default_policy={},
@@ -1524,7 +1568,9 @@ class DriveModule(GoogleModule):
                 method="POST",
                 base_url="https://slides.googleapis.com",
                 google_path="/v1/presentations/{presentationId}:batchUpdate",
-                description="Apply updates to a presentation (add slides, insert text, update shapes, etc.)",
+                description=(
+                    "Apply updates to a presentation (add slides, insert text, update shapes, etc.)"
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -1532,7 +1578,9 @@ class DriveModule(GoogleModule):
                         "requests": {
                             "type": "array",
                             "items": {"type": "object"},
-                            "description": "Update requests (CreateSlideRequest, InsertTextRequest, etc.)",
+                            "description": (
+                                "Update requests (CreateSlideRequest, InsertTextRequest, etc.)"
+                            ),
                         },
                     },
                     "required": ["presentation_id", "requests"],

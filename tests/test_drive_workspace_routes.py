@@ -1,10 +1,9 @@
 """Structural tests for the Sheets, Docs, and Slides routes added to the Drive module."""
 
-
 from gatekeeper.modules.drive import DriveModule
 
-
 # ── Sheets ──
+
 
 def test_sheets_routes_present():
     ids = {r.route_id for r in DriveModule().get_routes()}
@@ -51,29 +50,36 @@ def test_sheets_mcp_tool_names():
 
 def test_sheets_read_enabled_by_default():
     routes = {r.route_id: r for r in DriveModule().get_routes()}
-    for rid in ("drive.sheets.spreadsheets.get",
-                "drive.sheets.values.get",
-                "drive.sheets.values.batch_get"):
+    for rid in (
+        "drive.sheets.spreadsheets.get",
+        "drive.sheets.values.get",
+        "drive.sheets.values.batch_get",
+    ):
         assert routes[rid].enabled_by_default is True, f"{rid} should be on by default"
 
 
 def test_sheets_write_disabled_by_default():
     routes = {r.route_id: r for r in DriveModule().get_routes()}
-    for rid in ("drive.sheets.values.update",
-                "drive.sheets.values.append",
-                "drive.sheets.values.clear",
-                "drive.sheets.spreadsheets.create",
-                "drive.sheets.spreadsheets.batch_update"):
+    for rid in (
+        "drive.sheets.values.update",
+        "drive.sheets.values.append",
+        "drive.sheets.values.clear",
+        "drive.sheets.spreadsheets.create",
+        "drive.sheets.spreadsheets.batch_update",
+    ):
         assert routes[rid].enabled_by_default is False, f"{rid} should be off by default"
 
 
 # ── Docs ──
 
+
 def test_docs_routes_present():
     ids = {r.route_id for r in DriveModule().get_routes()}
-    for rid in ("drive.docs.documents.get",
-                "drive.docs.documents.create",
-                "drive.docs.documents.batch_update"):
+    for rid in (
+        "drive.docs.documents.get",
+        "drive.docs.documents.create",
+        "drive.docs.documents.batch_update",
+    ):
         assert rid in ids, f"Missing Docs route: {rid}"
 
 
@@ -95,12 +101,15 @@ def test_docs_read_enabled_docs_write_disabled():
 
 # ── Slides ──
 
+
 def test_slides_routes_present():
     ids = {r.route_id for r in DriveModule().get_routes()}
-    for rid in ("drive.slides.presentations.get",
-                "drive.slides.presentations.pages.get",
-                "drive.slides.presentations.create",
-                "drive.slides.presentations.batch_update"):
+    for rid in (
+        "drive.slides.presentations.get",
+        "drive.slides.presentations.pages.get",
+        "drive.slides.presentations.create",
+        "drive.slides.presentations.batch_update",
+    ):
         assert rid in ids, f"Missing Slides route: {rid}"
 
 
@@ -123,6 +132,7 @@ def test_slides_read_enabled_slides_write_disabled():
 
 # ── Scopes ──
 
+
 def test_drive_module_has_all_four_scopes():
     scopes = DriveModule().required_scopes
     for required in (
@@ -136,10 +146,12 @@ def test_drive_module_has_all_four_scopes():
 
 # ── Cross-cutting ──
 
+
 def test_no_route_uses_global_base_for_new_routes():
     """Defensive: confirm the new routes do NOT inherit GOOGLE_API_BASE via accident."""
     bad = [
-        r for r in DriveModule().get_routes()
+        r
+        for r in DriveModule().get_routes()
         if r.route_id.startswith(("drive.sheets.", "drive.docs.", "drive.slides."))
         and r.base_url is None
     ]

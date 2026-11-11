@@ -14,7 +14,6 @@ This catches:
 
 from __future__ import annotations
 
-import json
 import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -95,6 +94,7 @@ async def test_url_construction(
     # Build params with fake values for all path params
     # For multipart upload routes, also provide base64_content
     from gatekeeper.modules import load_module
+
     routes = load_module(module_name).get_routes()
     route_obj = next(r for r in routes if r.route_id == route_id)
     path_params = _extract_path_params(google_path)
@@ -109,6 +109,7 @@ async def test_url_construction(
     if route_obj.multipart_upload:
         # multipart upload routes validate base64_content before URL construction
         import base64 as _b64
+
         params["base64_content"] = _b64.b64encode(b"test upload body").decode()
         params["name"] = "test.txt"
 
@@ -151,8 +152,7 @@ async def test_url_construction(
         # No placeholders should remain in the URL
         remaining_placeholders = _extract_path_params(actual_url)
         assert remaining_placeholders == [], (
-            f"{route_id}: URL still has placeholders: {remaining_placeholders} — "
-            f"url={actual_url}"
+            f"{route_id}: URL still has placeholders: {remaining_placeholders} — url={actual_url}"
         )
 
         # Verify the URL contains the fake values (path params were substituted)

@@ -76,9 +76,10 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture(scope="session", autouse=True)
 def stub_validate_api_key():
     """Patch API key validation to a no-op fake for the test session."""
+    from fastapi import Request
+
     import gatekeeper.auth
     from gatekeeper.models import ApiKey
-    from fastapi import Request
 
     async def _fake_validate(request: Request):
         key = ApiKey(
@@ -93,6 +94,7 @@ def stub_validate_api_key():
     original = gatekeeper.auth.validate_api_key
     gatekeeper.auth.validate_api_key = _fake_validate
     import gatekeeper.api.router as router_mod
+
     router_mod.validate_api_key = _fake_validate
     yield
     gatekeeper.auth.validate_api_key = original

@@ -132,7 +132,6 @@ class TestApiProxy:
         # (This test verifies the flow, the actual DB write happens in a separate session)
 
 
-
 @pytest.mark.asyncio
 class TestParamMerge:
     """Regression tests for PATCH/POST/PUT query+body param merge."""
@@ -155,6 +154,7 @@ class TestParamMerge:
     async def router_client(self, app):
         """Return an httpx client wired to an app whose API-key check is stubbed."""
         from fastapi import Request
+
         from gatekeeper.api import router
         from gatekeeper.models import ApiKey
 
@@ -244,9 +244,7 @@ class TestParamMerge:
 
     async def test_post_query_only_no_body(self, router_client, stub_proxy):
         """POST with query params and no body should keep query params."""
-        result = await router_client.post(
-            "/api/v1/gmail/messages/send?threadId=t1"
-        )
+        result = await router_client.post("/api/v1/gmail/messages/send?threadId=t1")
         assert result.status_code == 200
         assert stub_proxy["params"] == {"threadId": "t1"}
 

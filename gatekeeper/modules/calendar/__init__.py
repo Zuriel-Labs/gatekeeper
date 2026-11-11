@@ -641,7 +641,10 @@ class CalendarModule(GoogleModule):
                 route_id="calendar.calendar_list.patch",
                 method="PATCH",
                 google_path="/calendar/v3/users/me/calendarList/{calendarId}",
-                description="Updates an existing calendar on the user's calendar list. This method supports patch semantics.",
+                description=(
+                    "Updates an existing calendar on the user's calendar "
+                    "list. This method supports patch semantics."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {},
@@ -659,7 +662,14 @@ class CalendarModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["maxResults", "minAccessRole", "pageToken", "showDeleted", "showHidden", "syncToken"],
+                query_params=[
+                    "maxResults",
+                    "minAccessRole",
+                    "pageToken",
+                    "showDeleted",
+                    "showHidden",
+                    "syncToken",
+                ],
                 default_policy={},
                 enabled_by_default=False,
             ),
@@ -667,7 +677,9 @@ class CalendarModule(GoogleModule):
                 route_id="calendar.calendars.patch",
                 method="PATCH",
                 google_path="/calendar/v3/calendars/{calendarId}",
-                description="Updates metadata for a calendar. This method supports patch semantics.",
+                description=(
+                    "Updates metadata for a calendar. This method supports patch semantics."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {},
@@ -691,7 +703,10 @@ class CalendarModule(GoogleModule):
                 route_id="calendar.events.import",
                 method="POST",
                 google_path="/calendar/v3/calendars/{calendarId}/events/import",
-                description="Imports an event. This operation is used to add a private copy of an existing event to a calendar.",
+                description=(
+                    "Imports an event. This operation is used to add a "
+                    "private copy of an existing event to a calendar."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {},
@@ -709,7 +724,17 @@ class CalendarModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["alwaysIncludeEmail", "maxAttendees", "maxResults", "originalStart", "pageToken", "showDeleted", "timeMax", "timeMin", "timeZone"],
+                query_params=[
+                    "alwaysIncludeEmail",
+                    "maxAttendees",
+                    "maxResults",
+                    "originalStart",
+                    "pageToken",
+                    "showDeleted",
+                    "timeMax",
+                    "timeMin",
+                    "timeZone",
+                ],
                 default_policy={},
             ),
             RouteDef(
@@ -721,7 +746,14 @@ class CalendarModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["alwaysIncludeEmail", "conferenceDataVersion", "maxAttendees", "sendNotifications", "sendUpdates", "supportsAttachments"],
+                query_params=[
+                    "alwaysIncludeEmail",
+                    "conferenceDataVersion",
+                    "maxAttendees",
+                    "sendNotifications",
+                    "sendUpdates",
+                    "supportsAttachments",
+                ],
                 default_policy={},
                 enabled_by_default=False,
             ),
@@ -734,7 +766,26 @@ class CalendarModule(GoogleModule):
                     "type": "object",
                     "properties": {},
                 },
-                query_params=["alwaysIncludeEmail", "eventTypes", "iCalUID", "maxAttendees", "maxResults", "orderBy", "pageToken", "privateExtendedProperty", "q", "sharedExtendedProperty", "showDeleted", "showHiddenInvitations", "singleEvents", "syncToken", "timeMax", "timeMin", "timeZone", "updatedMin"],
+                query_params=[
+                    "alwaysIncludeEmail",
+                    "eventTypes",
+                    "iCalUID",
+                    "maxAttendees",
+                    "maxResults",
+                    "orderBy",
+                    "pageToken",
+                    "privateExtendedProperty",
+                    "q",
+                    "sharedExtendedProperty",
+                    "showDeleted",
+                    "showHiddenInvitations",
+                    "singleEvents",
+                    "syncToken",
+                    "timeMax",
+                    "timeMin",
+                    "timeZone",
+                    "updatedMin",
+                ],
                 default_policy={},
                 enabled_by_default=False,
             ),

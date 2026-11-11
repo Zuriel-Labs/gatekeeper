@@ -96,9 +96,7 @@ class AppsScriptModule(GoogleModule):
                         "files": {
                             "type": "array",
                             "items": {"type": "object"},
-                            "description": (
-                                "Source files to write (Apps Script Content model)"
-                            ),
+                            "description": ("Source files to write (Apps Script Content model)"),
                         },
                     },
                     "required": ["script_id", "files"],

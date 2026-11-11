@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import logging
 import mimetypes
 import os
-import io
 import uuid
 from pathlib import Path
 from typing import Any
@@ -448,7 +448,9 @@ class GoogleProxy:
                     method=request_method,
                     path=request_path,
                     status_code=response.status_code,
-                    response_summary=result.get("summary", "binary") if isinstance(result, dict) else "binary",
+                    response_summary=result.get("summary", "binary")
+                    if isinstance(result, dict)
+                    else "binary",
                 )
                 return JSONResponse(status_code=response.status_code, content=result)
 
@@ -717,8 +719,7 @@ class GoogleProxy:
             sheet_titles = params.pop(sheet_titles_key)
             if isinstance(sheet_titles, list):
                 spreadsheet["sheets"] = [
-                    {"properties": {"title": t, "index": i}}
-                    for i, t in enumerate(sheet_titles)
+                    {"properties": {"title": t, "index": i}} for i, t in enumerate(sheet_titles)
                 ]
 
         # Pass through any other fields the caller provided (namedRanges, etc.)
