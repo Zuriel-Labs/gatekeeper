@@ -20,6 +20,18 @@ from gatekeeper.policy import PolicyEngine
 logger = logging.getLogger(__name__)
 
 
+class _SafeMCPTransportLog(logging.Filter):
+    """Keep severity and source while suppressing untrusted SDK payloads."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = "MCP transport event (details suppressed)"
+        record.args = ()
+        record.exc_info = None
+        record.exc_text = None
+        record.stack_info = None
+        return True
+
+
 def _get_async_session():
     """Return the current async_session callable,
     allowing tests to patch gatekeeper.db.async_session."""
@@ -68,7 +80,10 @@ def _build_transport_security() -> Any:
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=list(hosts),
-        allowed_origins=list(hosts),
+        # Origins are scheme-qualified; host:port entries cannot match a
+        # browser Origin header. Do not make wildcard CORS disable rebinding
+        # protection: only explicitly configured origins are accepted.
+        allowed_origins=[origin for origin in settings.cors_origins if origin != "*"],
     )
 
 
@@ -107,8 +122,8 @@ def create_mcp_server() -> Any:
     For example:  gmail.messages.list → gmail__messages_list
     drive.files.list_shared → drive__files_list_shared
 
-    Each tool accepts all the route's input_schema parameters plus a
-    required ``api_key`` string parameter for authentication.
+    Each tool accepts all the route's input_schema parameters and an optional
+    ``api_key`` argument as a fallback when the HTTP header is absent.
     """
     from mcp.server.mcpserver import MCPServer
     from mcp.types import CallToolResult
@@ -346,6 +361,15 @@ def mount_mcp_server(app: FastAPI) -> None:
     global _mcp_instance
 
     try:
+        # SDK SSE debug messages include entire POST bodies and parsed frames;
+        # parse exceptions can also contain attacker-controlled input. A logger
+        # filter runs before any handler, even when DEBUG is explicitly enabled.
+        # Do not try to parse/redact secrets: arbitrary arguments are sensitive.
+        # The runner can also log a frame received before initialization.
+        for name in ("mcp.server.sse", "mcp.server.runner"):
+            sdk_logger = logging.getLogger(name)
+            if not any(isinstance(f, _SafeMCPTransportLog) for f in sdk_logger.filters):
+                sdk_logger.addFilter(_SafeMCPTransportLog())
         mcp = create_mcp_server()
         _mcp_instance = mcp
 
