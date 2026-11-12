@@ -1,6 +1,6 @@
 """MCP server setup — dynamic tool registration from enabled routes.
 
-Uses the MCP Python SDK v1.x (FastMCP) to expose enabled Gatekeeper
+Uses the MCP Python SDK v2 to expose enabled Gatekeeper
 routes as MCP tools discoverable by AI agents over SSE transport.
 """
 
@@ -18,6 +18,29 @@ from gatekeeper.models import ApiKey
 from gatekeeper.policy import PolicyEngine
 
 logger = logging.getLogger(__name__)
+
+
+class _SafeMCPTransportLog(logging.Filter):
+    """Keep severity and source while suppressing untrusted SDK payloads."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = "MCP transport event (details suppressed)"
+        record.args = ()
+        record.exc_info = None
+        record.exc_text = None
+        record.stack_info = None
+        return True
+
+
+class _SafeMCPAccessLog(logging.Filter):
+    """Keep access metadata but never log MCP query parameters (session IDs)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            client, method, path, version, status = record.args
+            if isinstance(path, str) and path.startswith("/mcp/") and "?" in path:
+                record.args = (client, method, path.split("?", 1)[0], version, status)
+        return True
 
 
 def _get_async_session():
@@ -68,7 +91,10 @@ def _build_transport_security() -> Any:
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=list(hosts),
-        allowed_origins=list(hosts),
+        # Origins are scheme-qualified; host:port entries cannot match a
+        # browser Origin header. Do not make wildcard CORS disable rebinding
+        # protection: only explicitly configured origins are accepted.
+        allowed_origins=[origin for origin in settings.cors_origins if origin != "*"],
     )
 
 
@@ -107,12 +133,22 @@ def create_mcp_server() -> Any:
     For example:  gmail.messages.list → gmail__messages_list
     drive.files.list_shared → drive__files_list_shared
 
-    Each tool accepts all the route's input_schema parameters plus a
-    required ``api_key`` string parameter for authentication.
+    Each tool accepts all the route's input_schema parameters and an optional
+    ``api_key`` argument as a fallback when the HTTP header is absent.
     """
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
+    from mcp.types import CallToolResult
 
-    mcp = FastMCP(
+    class GatekeeperMCPServer(MCPServer):
+        async def list_tools(self):
+            return await list_tools()
+
+        async def call_tool(self, name, arguments, context=None):
+            request = context.request_context.request if context else None
+            content = await call_tool(name, arguments, request)
+            return CallToolResult(content=content)
+
+    mcp = GatekeeperMCPServer(
         name="gatekeeper",
         instructions=(
             "Gatekeeper MCP server — a policy gateway for Google Workspace APIs "
@@ -128,14 +164,11 @@ def create_mcp_server() -> Any:
             "You cannot bypass disabled routes, modify policies, or access admin "
             "settings."
         ),
-        host=settings.host,
-        transport_security=_build_transport_security(),
     )
 
     # ------------------------------------------------------------------ #
     #  list_tools — dynamically build the tool list from the DB           #
     # ------------------------------------------------------------------ #
-    @mcp._mcp_server.list_tools()
     async def list_tools():
         """Return MCP tools for all enabled routes."""
         from mcp.types import Tool as MCPTool
@@ -183,7 +216,7 @@ def create_mcp_server() -> Any:
                             MCPTool(
                                 name=tool_name,
                                 description=route.description or f"{route.method} {route.route_id}",
-                                inputSchema={
+                                input_schema={
                                     **schema,
                                     "properties": props,
                                     "required": required,
@@ -196,8 +229,7 @@ def create_mcp_server() -> Any:
     # ------------------------------------------------------------------ #
     #  call_tool — authenticate & proxy through the policy engine         #
     # ------------------------------------------------------------------ #
-    @mcp._mcp_server.call_tool(validate_input=False)
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list:
+    async def call_tool(name: str, arguments: dict[str, Any], request=None) -> list:
         """Call a tool by name, routing through the policy engine."""
         import mcp.types as types
 
@@ -206,16 +238,8 @@ def create_mcp_server() -> Any:
 
         # ---- AUTH: header first, argument fallback, always pop ----
         api_key: str | None = None
-        try:
-            ctx = mcp._mcp_server.request_context
-        except LookupError:
-            ctx = None
-
-        if ctx is not None:
-            request = getattr(ctx, "request", None)
-            if request is not None:
-                # Starlette Headers use case-insensitive lookup
-                api_key = request.headers.get("X-Gatekeeper-API-Key") or None
+        if request is not None:
+            api_key = request.headers.get("X-Gatekeeper-API-Key") or None
 
         # Always pop api_key from arguments so it never reaches the proxy,
         # regardless of whether header auth was used.
@@ -348,6 +372,19 @@ def mount_mcp_server(app: FastAPI) -> None:
     global _mcp_instance
 
     try:
+        # SDK SSE debug messages include entire POST bodies and parsed frames;
+        # parse exceptions can also contain attacker-controlled input. A logger
+        # filter runs before any handler, even when DEBUG is explicitly enabled.
+        # Do not try to parse/redact secrets: arbitrary arguments are sensitive.
+        # The runner can also log a frame received before initialization.
+        # sse-starlette logs outgoing chunks, including session IDs and responses.
+        for name in ("mcp.server.sse", "mcp.server.runner", "sse_starlette.sse"):
+            sdk_logger = logging.getLogger(name)
+            if not any(isinstance(f, _SafeMCPTransportLog) for f in sdk_logger.filters):
+                sdk_logger.addFilter(_SafeMCPTransportLog())
+        access_logger = logging.getLogger("uvicorn.access")
+        if not any(isinstance(f, _SafeMCPAccessLog) for f in access_logger.filters):
+            access_logger.addFilter(_SafeMCPAccessLog())
         mcp = create_mcp_server()
         _mcp_instance = mcp
 
@@ -355,7 +392,59 @@ def mount_mcp_server(app: FastAPI) -> None:
         # No mount_path here — FastAPI's app.mount("/mcp", ...) already
         # provides the /mcp prefix. Setting mount_path="/mcp" would cause
         # the SSE client to POST to /mcp/mcp/messages/ (double path).
-        starlette_app = mcp.sse_app()
+        starlette_app = mcp.sse_app(
+            host=settings.host,
+            transport_security=_build_transport_security(),
+        )
+
+        # SDK 2.3's SSE request endpoint already drives an ASGI response but
+        # returns a second Response. Call it as ASGI and only emit that fallback
+        # when the SDK did not start a response. Keep the SDK's own transport,
+        # routing, and security middleware intact.
+        from starlette.requests import Request
+        from starlette.routing import Route
+
+        sse_route = next(
+            route
+            for route in starlette_app.routes
+            if isinstance(route, Route) and route.path == "/sse"
+        )
+        endpoint = sse_route.endpoint
+
+        async def sse_asgi(scope, receive, send):
+            started = False
+            completed = False
+            status = None
+
+            async def tracked_send(message):
+                nonlocal started, completed, status
+                if message["type"] == "http.response.start":
+                    started = True
+                    status = message["status"]
+                elif message["type"] == "http.response.body" and not message.get(
+                    "more_body", False
+                ):
+                    completed = True
+                await send(message)
+
+            try:
+                response = await endpoint(Request(scope, receive, tracked_send))
+            except ValueError as exc:
+                # SDK validation sends the denial before raising this sentinel.
+                if (
+                    completed
+                    and status is not None
+                    and status >= 400
+                    and str(exc) == "Request validation failed"
+                ):
+                    return
+                raise
+            if not started:
+                await response(scope, receive, tracked_send)
+            elif not completed:
+                await tracked_send({"type": "http.response.body", "body": b"", "more_body": False})
+
+        sse_route.app = sse_asgi
 
         # Mount the Starlette app as a sub-app under FastAPI
         # Routes become: GET /mcp/sse, POST /mcp/messages/
