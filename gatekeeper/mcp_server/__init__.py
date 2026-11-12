@@ -1,6 +1,6 @@
 """MCP server setup — dynamic tool registration from enabled routes.
 
-Uses the MCP Python SDK v1.x (FastMCP) to expose enabled Gatekeeper
+Uses the MCP Python SDK v2 to expose enabled Gatekeeper
 routes as MCP tools discoverable by AI agents over SSE transport.
 """
 
@@ -110,9 +110,19 @@ def create_mcp_server() -> Any:
     Each tool accepts all the route's input_schema parameters plus a
     required ``api_key`` string parameter for authentication.
     """
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
+    from mcp.types import CallToolResult
 
-    mcp = FastMCP(
+    class GatekeeperMCPServer(MCPServer):
+        async def list_tools(self):
+            return await list_tools()
+
+        async def call_tool(self, name, arguments, context=None):
+            request = context.request_context.request if context else None
+            content = await call_tool(name, arguments, request)
+            return CallToolResult(content=content)
+
+    mcp = GatekeeperMCPServer(
         name="gatekeeper",
         instructions=(
             "Gatekeeper MCP server — a policy gateway for Google Workspace APIs "
@@ -128,14 +138,11 @@ def create_mcp_server() -> Any:
             "You cannot bypass disabled routes, modify policies, or access admin "
             "settings."
         ),
-        host=settings.host,
-        transport_security=_build_transport_security(),
     )
 
     # ------------------------------------------------------------------ #
     #  list_tools — dynamically build the tool list from the DB           #
     # ------------------------------------------------------------------ #
-    @mcp._mcp_server.list_tools()
     async def list_tools():
         """Return MCP tools for all enabled routes."""
         from mcp.types import Tool as MCPTool
@@ -183,7 +190,7 @@ def create_mcp_server() -> Any:
                             MCPTool(
                                 name=tool_name,
                                 description=route.description or f"{route.method} {route.route_id}",
-                                inputSchema={
+                                input_schema={
                                     **schema,
                                     "properties": props,
                                     "required": required,
@@ -196,8 +203,7 @@ def create_mcp_server() -> Any:
     # ------------------------------------------------------------------ #
     #  call_tool — authenticate & proxy through the policy engine         #
     # ------------------------------------------------------------------ #
-    @mcp._mcp_server.call_tool(validate_input=False)
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list:
+    async def call_tool(name: str, arguments: dict[str, Any], request=None) -> list:
         """Call a tool by name, routing through the policy engine."""
         import mcp.types as types
 
@@ -206,16 +212,8 @@ def create_mcp_server() -> Any:
 
         # ---- AUTH: header first, argument fallback, always pop ----
         api_key: str | None = None
-        try:
-            ctx = mcp._mcp_server.request_context
-        except LookupError:
-            ctx = None
-
-        if ctx is not None:
-            request = getattr(ctx, "request", None)
-            if request is not None:
-                # Starlette Headers use case-insensitive lookup
-                api_key = request.headers.get("X-Gatekeeper-API-Key") or None
+        if request is not None:
+            api_key = request.headers.get("X-Gatekeeper-API-Key") or None
 
         # Always pop api_key from arguments so it never reaches the proxy,
         # regardless of whether header auth was used.
@@ -355,7 +353,10 @@ def mount_mcp_server(app: FastAPI) -> None:
         # No mount_path here — FastAPI's app.mount("/mcp", ...) already
         # provides the /mcp prefix. Setting mount_path="/mcp" would cause
         # the SSE client to POST to /mcp/mcp/messages/ (double path).
-        starlette_app = mcp.sse_app()
+        starlette_app = mcp.sse_app(
+            host=settings.host,
+            transport_security=_build_transport_security(),
+        )
 
         # Mount the Starlette app as a sub-app under FastAPI
         # Routes become: GET /mcp/sse, POST /mcp/messages/
