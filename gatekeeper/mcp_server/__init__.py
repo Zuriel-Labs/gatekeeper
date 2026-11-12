@@ -32,6 +32,17 @@ class _SafeMCPTransportLog(logging.Filter):
         return True
 
 
+class _SafeMCPAccessLog(logging.Filter):
+    """Keep access metadata but never log MCP query parameters (session IDs)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            client, method, path, version, status = record.args
+            if isinstance(path, str) and path.startswith("/mcp/") and "?" in path:
+                record.args = (client, method, path.split("?", 1)[0], version, status)
+        return True
+
+
 def _get_async_session():
     """Return the current async_session callable,
     allowing tests to patch gatekeeper.db.async_session."""
@@ -366,10 +377,14 @@ def mount_mcp_server(app: FastAPI) -> None:
         # filter runs before any handler, even when DEBUG is explicitly enabled.
         # Do not try to parse/redact secrets: arbitrary arguments are sensitive.
         # The runner can also log a frame received before initialization.
-        for name in ("mcp.server.sse", "mcp.server.runner"):
+        # sse-starlette logs outgoing chunks, including session IDs and responses.
+        for name in ("mcp.server.sse", "mcp.server.runner", "sse_starlette.sse"):
             sdk_logger = logging.getLogger(name)
             if not any(isinstance(f, _SafeMCPTransportLog) for f in sdk_logger.filters):
                 sdk_logger.addFilter(_SafeMCPTransportLog())
+        access_logger = logging.getLogger("uvicorn.access")
+        if not any(isinstance(f, _SafeMCPAccessLog) for f in access_logger.filters):
+            access_logger.addFilter(_SafeMCPAccessLog())
         mcp = create_mcp_server()
         _mcp_instance = mcp
 

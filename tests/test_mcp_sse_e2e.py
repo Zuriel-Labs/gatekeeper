@@ -17,8 +17,19 @@ from mcp.client.sse import sse_client
 from gatekeeper.mcp_server import mount_mcp_server
 
 
+@pytest.fixture
+def server_records():
+    records = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    return records, Capture()
+
+
 @pytest_asyncio.fixture
-async def live_server(app, monkeypatch):
+async def live_server(app, monkeypatch, server_records):
     import gatekeeper.mcp_server as server
 
     sock = socket.socket()
@@ -27,7 +38,13 @@ async def live_server(app, monkeypatch):
     port = sock.getsockname()[1]
     monkeypatch.setattr(server.settings, "port", port)
     mount_mcp_server(app)
-    uv = uvicorn.Server(uvicorn.Config(app, log_config=None, lifespan="off", access_log=False))
+    uv = uvicorn.Server(uvicorn.Config(app, log_level="debug", lifespan="off"))
+    _, handler = server_records
+    access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_logger = logging.getLogger("uvicorn")
+    access_logger.addHandler(handler)
+    uvicorn_logger.addHandler(handler)
+    logging.getLogger().addHandler(handler)
     task = asyncio.create_task(uv.serve(sockets=[sock]))
     try:
         async with asyncio.timeout(10):
@@ -37,6 +54,9 @@ async def live_server(app, monkeypatch):
     finally:
         uv.should_exit = True
         await asyncio.wait_for(task, 10)
+        access_logger.removeHandler(handler)
+        uvicorn_logger.removeHandler(handler)
+        logging.getLogger().removeHandler(handler)
         sock.close()
 
 
@@ -50,27 +70,65 @@ async def session_at(url, key=None):
 
 
 @pytest.mark.asyncio
-async def test_sse_auth_and_debug_logs(live_server, api_key, caplog):
+async def test_sse_auth_and_debug_logs(live_server, api_key, caplog, server_records):
     caplog.set_level(logging.DEBUG)
+    # Client and HTTP wire debug logs run in this same process, but are not server logs.
+    for name in ("mcp.client", "httpcore", "httpcore2", "httpx", "httpx2"):
+        caplog.set_level(logging.WARNING, logger=name)
     secret_argument = "fake-sensitive-argument-value"
     fallback = "fake-fallback-secret"
+    secret_response = "fake-sensitive-tool-response"
+    session_ids = []
     with patch("gatekeeper.api.proxy.GoogleProxy") as proxy_cls:
         proxy = proxy_cls.return_value
-        proxy.call_google = AsyncMock(return_value={"ok": True})
-        async with session_at(live_server, api_key) as session:
-            result = await session.call_tool(
-                "drive__files_list", {"api_key": fallback, "q": secret_argument}
-            )
-            assert json.loads(result.content[0].text) == {"ok": True}
+        proxy.call_google = AsyncMock(return_value={"value": secret_response})
+        async with sse_client(
+            f"{live_server}/mcp/sse",
+            headers={"X-Gatekeeper-API-Key": api_key},
+            on_session_created=session_ids.append,
+        ) as (read, write):
+            async with ClientSession(read, write, read_timeout_seconds=5) as session:
+                await session.initialize()
+                result = await session.call_tool(
+                    "drive__files_list", {"api_key": fallback, "q": secret_argument}
+                )
+                assert json.loads(result.content[0].text) == {"value": secret_response}
         assert proxy.call_google.await_args.kwargs["params"] == {"q": secret_argument}
 
-    server_logs = "\n".join(
-        record.getMessage() for record in caplog.records if record.name.startswith("mcp.server")
+    assert len(session_ids) == 1
+    records, _ = server_records
+    server_logs = "\n".join(logging.Formatter().format(record) for record in records)
+    for secret in (fallback, secret_argument, secret_response, api_key, str(session_ids[0])):
+        assert secret not in server_logs
+    assert any(record.name == "sse_starlette.sse" for record in records)
+    assert any(
+        record.name == "uvicorn.access" and '"POST /mcp/messages/ HTTP/' in record.getMessage()
+        for record in records
     )
-    assert fallback not in server_logs
-    assert secret_argument not in server_logs
-    assert api_key not in server_logs
     assert "MCP transport event (details suppressed)" in server_logs
+
+
+@pytest.mark.asyncio
+async def test_sse_tool_call_still_writes_audit_log(live_server, api_key, db_session, monkeypatch):
+    from sqlalchemy import select
+
+    import gatekeeper.db
+    import gatekeeper.logging
+    from gatekeeper.models import AuditLog
+
+    monkeypatch.setattr(gatekeeper.logging, "async_session", gatekeeper.db.async_session)
+    with patch("gatekeeper.api.proxy.credential_manager.get_credentials", return_value=None):
+        async with session_at(live_server, api_key) as session:
+            result = await session.call_tool("drive__files_list", {})
+            assert json.loads(result.content[0].text)["status"] == 401
+
+    audit = (await db_session.execute(select(AuditLog))).scalars().all()
+    assert len(audit) == 1
+    assert (audit[0].module, audit[0].route, audit[0].status_code) == (
+        "drive",
+        "drive.files.list",
+        401,
+    )
 
 
 @pytest.mark.asyncio
