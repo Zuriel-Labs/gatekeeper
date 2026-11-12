@@ -397,6 +397,55 @@ def mount_mcp_server(app: FastAPI) -> None:
             transport_security=_build_transport_security(),
         )
 
+        # SDK 2.3's SSE request endpoint already drives an ASGI response but
+        # returns a second Response. Call it as ASGI and only emit that fallback
+        # when the SDK did not start a response. Keep the SDK's own transport,
+        # routing, and security middleware intact.
+        from starlette.requests import Request
+        from starlette.routing import Route
+
+        sse_route = next(
+            route
+            for route in starlette_app.routes
+            if isinstance(route, Route) and route.path == "/sse"
+        )
+        endpoint = sse_route.endpoint
+
+        async def sse_asgi(scope, receive, send):
+            started = False
+            completed = False
+            status = None
+
+            async def tracked_send(message):
+                nonlocal started, completed, status
+                if message["type"] == "http.response.start":
+                    started = True
+                    status = message["status"]
+                elif message["type"] == "http.response.body" and not message.get(
+                    "more_body", False
+                ):
+                    completed = True
+                await send(message)
+
+            try:
+                response = await endpoint(Request(scope, receive, tracked_send))
+            except ValueError as exc:
+                # SDK validation sends the denial before raising this sentinel.
+                if (
+                    completed
+                    and status is not None
+                    and status >= 400
+                    and str(exc) == "Request validation failed"
+                ):
+                    return
+                raise
+            if not started:
+                await response(scope, receive, tracked_send)
+            elif not completed:
+                await tracked_send({"type": "http.response.body", "body": b"", "more_body": False})
+
+        sse_route.app = sse_asgi
+
         # Mount the Starlette app as a sub-app under FastAPI
         # Routes become: GET /mcp/sse, POST /mcp/messages/
         app.mount("/mcp", starlette_app)

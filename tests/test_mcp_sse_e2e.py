@@ -3,8 +3,10 @@
 import asyncio
 import json
 import logging
+import os
 import socket
 from contextlib import asynccontextmanager
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -30,8 +32,13 @@ def server_records():
 
 @pytest_asyncio.fixture
 async def live_server(app, monkeypatch, server_records):
+    from sse_starlette.sse import AppStatus
+
     import gatekeeper.mcp_server as server
 
+    # Uvicorn/sse-starlette hold process-global shutdown state. Isolate each
+    # real server so a prior shutdown cannot immediately drain the next one.
+    monkeypatch.setattr(AppStatus, "should_exit", False)
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     sock.listen(128)
@@ -58,6 +65,13 @@ async def live_server(app, monkeypatch, server_records):
         uvicorn_logger.removeHandler(handler)
         logging.getLogger().removeHandler(handler)
         sock.close()
+        records, _ = server_records
+        assert not [
+            record
+            for record in records
+            if record.name == "uvicorn.error"
+            and "Exception in ASGI application" in record.getMessage()
+        ], "Uvicorn reported an ASGI application error"
 
 
 @asynccontextmanager
@@ -67,6 +81,47 @@ async def session_at(url, key=None):
         async with ClientSession(read, write, read_timeout_seconds=5) as session:
             await session.initialize()
             yield session
+
+
+@pytest.mark.asyncio
+async def test_sse_graceful_drain_completes_without_asgi_error(live_server, server_records):
+    from sse_starlette.sse import AppStatus
+
+    async with httpx.AsyncClient(timeout=5) as client:
+        async with client.stream("GET", f"{live_server}/mcp/sse") as response:
+            assert response.status_code == 200
+            AppStatus.should_exit = True
+            async with asyncio.timeout(5):
+                async for _ in response.aiter_bytes():
+                    pass
+    await asyncio.sleep(0.1)
+    assert not [r for r in server_records[0] if r.name == "uvicorn.error" and r.exc_info]
+
+
+@pytest.mark.asyncio
+async def test_mcp_v1_client_compatibility(live_server, api_key):
+    python = os.environ.get("MCP_V1_PYTHON")
+    if not python:
+        pytest.skip("set MCP_V1_PYTHON to a Python environment with mcp==1.30.0")
+    with patch("gatekeeper.api.proxy.GoogleProxy") as proxy_cls:
+        proxy_cls.return_value.call_google = AsyncMock(return_value={"ok": True})
+        process = await asyncio.create_subprocess_exec(
+            python,
+            str(Path(__file__).with_name("mcp_v1_client.py")),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(json.dumps({"url": live_server, "key": api_key}).encode()), 20
+            )
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+        assert process.returncode == 0, (stdout.decode(), stderr.decode())
+        assert proxy_cls.return_value.call_google.await_args.kwargs["params"] == {"q": "v1"}
 
 
 @pytest.mark.asyncio
