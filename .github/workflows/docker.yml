@@ -72,5 +72,5 @@ jobs:
       - name: Smoke test image entry point and MCP server
         if: github.event_name == 'pull_request'
         run: |
-          docker run --rm gatekeeper-ci:smoke gatekeeper --help
-          docker run --rm gatekeeper-ci:smoke python -c 'from gatekeeper.mcp_server import create_mcp_server; create_mcp_server()'
+          docker run --rm -e GATEKEEPER_ADMIN_PASSWORD=ci-only -e GATEKEEPER_SECRET_KEY=ci-only gatekeeper-ci:smoke gatekeeper --help
+          docker run --rm -e GATEKEEPER_ADMIN_PASSWORD=ci-only -e GATEKEEPER_SECRET_KEY=ci-only gatekeeper-ci:smoke python -c 'from gatekeeper.mcp_server import create_mcp_server; create_mcp_server()'
