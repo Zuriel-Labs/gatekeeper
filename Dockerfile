@@ -6,7 +6,7 @@
 ARG BUILD_VERSION=0.0.0
 
 # ==================== Build Stage ====================
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 ARG BUILD_VERSION
 
@@ -27,7 +27,7 @@ RUN BUILD_VERSION="${BUILD_VERSION}" python3 scripts/set_version.py pyproject.to
 RUN uv pip install --system --no-cache .
 
 # ==================== Runtime Stage ====================
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 LABEL org.opencontainers.image.title="Gatekeeper"
 LABEL org.opencontainers.image.description="Policy gateway for Google Workspace APIs with MCP server integration"
@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+COPY --from=builder /usr/local/lib/python3.15/site-packages/ /usr/local/lib/python3.15/site-packages/
 COPY --from=builder /usr/local/bin/gatekeeper /usr/local/bin/gatekeeper
 
 # Copy the application code
